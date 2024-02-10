@@ -1,8 +1,10 @@
 use std::collections::HashMap;
+use std::fs::File;
+use std::io::Write;
 use std::time::{Duration, SystemTime};
 
 struct Task {
-    #[allow(dead_code)] //@TODO: name will be used in the future as save the task name
+    id: u32,
     name: String,
     start_time: SystemTime,
     end_time: SystemTime,
@@ -25,6 +27,7 @@ impl TimeTracer {
 
     pub fn new_task(&mut self, name: &str) -> u32 {
         let task = Task {
+            id: self.current_id,
             name: name.to_string(),
             start_time: SystemTime::now(),
             end_time: SystemTime::now(),
@@ -71,9 +74,23 @@ impl TimeTracer {
             }
         }
     }
+
+    fn write_to_file(&self, task: &Task, file_path: &str) -> Result<(), std::io::Error> {
+        let mut file = File::options()
+            .append(true)
+            .create(true)
+            .open(file_path)?;
+
+        let start_time = task.start_time.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
+        let end_time = task.end_time.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
+        writeln!(&mut file, "{},{},{},{}", task.id, task.name, start_time.as_secs(), end_time.as_secs())?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
+use regex::Regex;
+
 mod tests {
     use super::*;
 
@@ -118,5 +135,63 @@ mod tests {
         let mut tracer = TimeTracer::new();
         let id = tracer.new_task("task1");
         assert_eq!(tracer.end_task(id), None);
+    }
+
+    fn create_new_task_and_write_to_file(tracer: &mut TimeTracer, file_path: &str, task_name: &str) -> Result<(), std::io::Error> {
+        let id = tracer.new_task(task_name);
+        tracer.start_task(id);
+        std::thread::sleep(Duration::from_millis(500));
+        tracer.end_task(id);
+        let task = tracer.tasks_map.get(&id).unwrap();
+        tracer.write_to_file(task, file_path)
+    }
+
+    #[test]
+    fn private_if_file_is_not_exist_then_create_file() {
+        let file_path = "test_work/test_save.txt";
+
+        // if already exists, delete the save file
+        if std::path::Path::new(file_path).exists() {
+            std::fs::remove_file(file_path).unwrap();
+        }
+
+        let mut tracer = TimeTracer::new();
+
+        // create a new task and write it to the file
+        assert!(create_new_task_and_write_to_file(&mut tracer, file_path, "task1").is_ok());
+
+        // check if the file is created
+        assert!(std::path::Path::new(file_path).exists());
+
+        // check content of the file using regex
+        let file_content = std::fs::read_to_string(file_path).unwrap();
+        let re = Regex::new(r"0,task1,\d+,\d+").unwrap();
+        assert!(re.is_match(&file_content));
+    }
+
+    #[test]
+    fn private_if_write_twice_then_append_to_file() {
+        let file_path = "test_work/test_save_twice.txt";
+
+        if std::path::Path::new(file_path).exists() {
+            std::fs::remove_file(file_path).unwrap();
+        }
+
+        let mut tracer = TimeTracer::new();
+
+        // create a new task and write it to the file
+        assert!(create_new_task_and_write_to_file(&mut tracer, file_path, "task1").is_ok());
+
+        // create a new task and write it again
+        assert!(create_new_task_and_write_to_file(&mut tracer, file_path, "task2").is_ok());
+
+        // check line number of the file
+        let file_content = std::fs::read_to_string(file_path).unwrap();
+        assert_eq!(file_content.lines().count(), 2);
+
+        // check last line
+        let last_line = file_content.lines().last().unwrap();
+        let re = Regex::new(r"1,task2,\d+,\d+").unwrap();
+        assert!(re.is_match(last_line));
     }
 }
