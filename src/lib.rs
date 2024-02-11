@@ -31,7 +31,7 @@ impl TimeTracer {
         }
     }
 
-    pub fn delete_save_file(&self) -> Result<(), std::io::Error> {
+    pub fn delete_save_files(&self) -> Result<(), std::io::Error> {
         if !std::path::Path::new(&self.save_file_path).exists() {
             return Ok(());
         }
@@ -85,7 +85,7 @@ impl TimeTracer {
                 self.running_tasks.retain(|&x| x != id);
                 let duration = Some(task.end_time.duration_since(task.start_time).expect("Time went backwards"));
 
-                let write_result = Self::write_to_file(task, &self.save_file_path);
+                let write_result = Self::save_task_to_file(task, &self.save_file_path);
                 if write_result.is_err() {
                     eprintln!("Failed to write to file: {}", write_result.err().unwrap());
                 }
@@ -94,7 +94,7 @@ impl TimeTracer {
         }
     }
 
-    fn write_to_file(task: &Task, file_path: &str) -> Result<(), std::io::Error> {
+    fn save_task_to_file(task: &Task, file_path: &str) -> Result<(), std::io::Error> {
         let mut file = File::options()
             .append(true)
             .create(true)
@@ -173,7 +173,7 @@ mod tests {
         let file_path = "test_work/test_save.txt";
 
         let mut tracer = TimeTracer::new_with_file_path(file_path);
-        assert!(tracer.delete_save_file().is_ok());
+        assert!(tracer.delete_save_files().is_ok());
 
         // create a new task and write it to the file
         assert!(create_task_and_start_end(&mut tracer, "task1"));
@@ -192,7 +192,7 @@ mod tests {
         let file_path = "test_work/test_save_twice.txt";
 
         let mut tracer = TimeTracer::new_with_file_path(file_path);
-        assert!(tracer.delete_save_file().is_ok());
+        assert!(tracer.delete_save_files().is_ok());
 
         // create a new task and write it to the file
         assert!(create_task_and_start_end(&mut tracer, "task1"));
