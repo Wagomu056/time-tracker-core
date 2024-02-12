@@ -121,7 +121,9 @@ impl TimeTracer {
 
         let start_time = task.start_time.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
         let end_time = task.end_time.duration_since(SystemTime::UNIX_EPOCH).expect("Time went backwards");
-        writeln!(&mut file, "{},{},{},{}", task.id, task.name, start_time.as_secs(), end_time.as_secs())?;
+        let duration_minutes = task.end_time.duration_since(task.start_time).expect("EndTime went backward");
+
+        writeln!(&mut file, "{},{},{},{},{}", task.id, task.name, start_time.as_secs(), end_time.as_secs(), duration_minutes.as_secs() / 60)?;
         Ok(())
     }
 
@@ -260,7 +262,7 @@ mod tests {
 
         // check content of the file using regex
         let file_content = std::fs::read_to_string(file_path).unwrap();
-        let re = Regex::new(r"0,task1,\d+,\d+").unwrap();
+        let re = Regex::new(r"0,task1,\d+,\d+,0").unwrap();
         assert!(re.is_match(&file_content));
     }
 
@@ -287,7 +289,7 @@ mod tests {
 
         // check last line
         let last_line = file_content.lines().last().unwrap();
-        let re = Regex::new(r"1,task2,\d+,\d+").unwrap();
+        let re = Regex::new(r"1,task2,\d+,\d+,0").unwrap();
         assert!(re.is_match(last_line));
     }
 }
